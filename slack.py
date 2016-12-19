@@ -114,6 +114,9 @@ class BlackCard:
         else:
             self.draw = draw;
 
+    def get_id_str(self):
+        return "B"+str(self.card_id)
+
     def as_dict(self):
         return { 'text': self.text,
                  'draw': self.draw,
@@ -125,6 +128,9 @@ class WhiteCard:
         self.text = text
         self.author = author
         self.card_id = card_id
+
+    def get_id_str(self):
+        return "W"+str(self.card_id)
 
     def as_dict(self):
         return { 'text': self.text,
@@ -167,28 +173,18 @@ class Deck:
         # but my thought is that the sample size will be low enough
         # that I'm choosing not to worry about this now.
         cursor.execute("select text, draw, pick, user_id, user_name, id from black_cards order by RANDOM() limit 1")
-        row = cursor.fetchone();
-        if (row is None):
+        result = self.__cursor_to_black_cards(cursor);
+        if (len(result) != 1):
             raise SlackError("Not enough black cards!")
-        (text, draw, pick, user_id, user_name, card_id) = row;
-
-        return BlackCard(text=text, draw=draw, pick=pick,
-                         author=User(id=user_id, name=user_name),
-                         card_id=card_id)
+        return result[0]
 
     def draw_whites(self, count=1):
         cursor = self.connection.cursor()
         cursor.execute("select text, user_id, user_name, id from white_cards order by RANDOM() limit ?", str(count))
-        results = []
-        for i in range(0, count):
-            row = cursor.fetchone();
-            if (row is None):
-                raise SlackError("Not enough white cards!")
-            (text, user_id, user_name, card_id) = row
-            results.append(WhiteCard(text=text,
-                                     author=User(id=user_id, name=user_name),
-                                     card_id=card_id))
-        return results
+        result = self.__cursor_to_white_cards(cursor);
+        if (len(result) != count):
+            raise SlackError("Not enough white cards!")
+        return result
 
     def save_black(self, black_card):
         cursor = self.connection.cursor()
@@ -200,8 +196,9 @@ class Deck:
                            black_card.pick,
                            black_card.author.id,
                            black_card.author.name))
+        new_id = cursor.lastrowid
         self.connection.commit()
-        return
+        return new_id
 
     def save_white(self, white_card):
         cursor = self.connection.cursor()
@@ -211,8 +208,9 @@ class Deck:
                            white_card.text,
                            white_card.author.id,
                            white_card.author.name))
+        new_id = cursor.lastrowid
         self.connection.commit()
-        return
+        return new_id
 
     def get_status(self):
         cursor = self.connection.cursor()
@@ -222,6 +220,34 @@ class Deck:
         black_card_count = cursor.fetchone()[0]
         return DeckStatus(white_card_count=white_card_count,
                           black_card_count=black_card_count)
+
+    def __cursor_to_white_cards(self, cursor):
+        results = []
+        for row in cursor:
+            (text, user_id, user_name, card_id) = row
+            results.append(WhiteCard(text=text,
+                                     author=User(id=user_id, name=user_name),
+                                     card_id=card_id))
+        return results
+
+    def __cursor_to_black_cards(self, cursor):
+        results = []
+        for row in cursor:
+            (text, draw, pick, user_id, user_name, card_id) = row
+            results.append(BlackCard(text=text, draw=draw, pick=pick,
+                                     author=User(id=user_id, name=user_name),
+                                     card_id=card_id))
+        return results
+
+    def search(self, text):
+        text = "%" + text + "%"
+        cursor = self.connection.cursor()
+        cards = [];
+        cursor.execute("select text, draw, pick, user_id, user_name, id from black_cards where text like ?", (text,));
+        cards += self.__cursor_to_black_cards(cursor);
+        cursor.execute("select text, user_id, user_name, id from white_cards where text like ?", (text,));
+        cards += self.__cursor_to_white_cards(cursor);
+        return cards
 
 def handle_status(deck):
     status = deck.get_status()
@@ -237,18 +263,18 @@ def handle_status(deck):
 def handle_new_card(color, deck, author, text):
     if color == 'white':
         new_card = WhiteCard(text=text, author=author)
-        deck.save_white(new_card)
+        new_card_id = deck.save_white(new_card)
         return {
             'response_type': 'in_channel',
-            'text': "New card: :white_square: _" + text + "_",
+            'text': "New card: (W" + str(new_card_id) + ") :white_square: _" + text + "_",
         }
     elif color == 'black':
         text = normalize_blanks(text)
         new_card = BlackCard(text=text, author=author)
-        deck.save_black(new_card)
+        new_card_id = deck.save_black(new_card)
         return {
             'response_type': 'in_channel',
-            'text': "New card: :black_square: _" + text + "_",
+            'text': "New card: (B" + str(new_card_id) + ") :black_square: _" + text + "_",
         }
     else:
         raise ValueError("Unknown card color!")
@@ -261,6 +287,38 @@ def handle_draw(deck):
         'text': round_as_text(black_card, white_cards),
         'raw': round_as_dict(black_card, white_cards)
     }
+
+def handle_search(deck, text):
+    cards = deck.search(text)
+
+    if (len(cards) == 0):
+        return {
+            'response_type': 'ephemeral',
+            'text': 'No results found for _'+text+'_.'
+        }
+
+    total_count = len(cards)
+    result_cap = 4
+    card_strings = [ ("(" + c.get_id_str() + ") " + c.text) for c in cards ]
+
+    if (total_count > result_cap):
+        card_strings = card_strings[0:result_cap]
+        returned_count = len(card_strings)
+        card_strings.append("... and more. Please be more specific.");
+    else:
+        returned_count = len(card_strings)
+
+    attachmentText = "\n".join(card_strings)
+
+    return {
+        'response_type': 'ephemeral',
+        'text': '_'+text+'_ (' + str(returned_count) + ' of ' + str(total_count) + ' results)',
+        'attachments': [
+            {
+                'text': attachmentText
+            }
+        ]
+    };
 
 def handler(req):
 
@@ -279,6 +337,8 @@ def handler(req):
             resp = handle_new_card('white', deck, author, remove_first_word(text))
         elif (text.startswith("status")):
             resp = handle_status(deck)
+        elif (text.startswith("search")):
+            resp = handle_search(deck, remove_first_word(text))
         elif (text is None or text == ""):
             resp = handle_draw(deck)
         else:

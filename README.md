@@ -29,6 +29,8 @@ The following commands are supported. (The following assumes you configured a co
  - Any sequence of three or more underscores is replaced with `:blank:`.
 - `/cah status`
  - Display status about the card pool.
+- `/cah search [text]`
+ - Search for cards containing the string "text".
 
 Card pools are scoped to teams.
 
