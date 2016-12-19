@@ -36,6 +36,12 @@ black_emoji = (":black_square:", ":black_small_square:", ":black_medium_small_sq
 white_emoji = (":white_square:", ":white_small_square:", ":white_medium_small_square:",
                ":white_medium_square:", ":white_large_square:", ":white_circle:", "white")
 
+class SlackError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
 # Return the number of blanks in a string.
 def get_blank_count(text):
     appears = text.count(blank_pattern);
@@ -161,29 +167,27 @@ class Deck:
         # but my thought is that the sample size will be low enough
         # that I'm choosing not to worry about this now.
         cursor.execute("select text, draw, pick, user_id, user_name, id from black_cards order by RANDOM() limit 1")
-        if (cursor.rowcount == 0):
-            raise Exception("No black cards!")
-        row = cursor.fetchone()
+        row = cursor.fetchone();
+        if (row is None):
+            raise SlackError("Not enough black cards!")
+        (text, draw, pick, user_id, user_name, card_id) = row;
 
-        return BlackCard(text=row[0],
-                         draw=row[1],
-                         pick=row[2],
-                         author=User(id=row[3],
-                                     name=[4]),
-                         card_id=row[5])
+        return BlackCard(text=text, draw=draw, pick=pick,
+                         author=User(id=user_id, name=user_name),
+                         card_id=card_id)
 
     def draw_whites(self, count=1):
         cursor = self.connection.cursor()
         cursor.execute("select text, user_id, user_name, id from white_cards order by RANDOM() limit ?", str(count))
-        if (cursor.rowcount == 0):
-            raise Exception("No white cards!")
         results = []
         for i in range(0, count):
-            row = cursor.fetchone()
-            results.append(WhiteCard(text=row[0],
-                                     author=User(id=row[1],
-                                                 name=[2]),
-                                     card_id=row[3]))
+            row = cursor.fetchone();
+            if (row is None):
+                raise SlackError("Not enough white cards!")
+            (text, user_id, user_name, card_id) = row
+            results.append(WhiteCard(text=text,
+                                     author=User(id=user_id, name=user_name),
+                                     card_id=card_id))
         return results
 
     def save_black(self, black_card):
@@ -265,21 +269,32 @@ def handler(req):
 
     resp = {}
 
-    deck = Deck(params['team_id'])
-    author = User(id=params['user_id'], name=params['user_name'])
+    try:
+        deck = Deck(params['team_id'])
+        author = User(id=params['user_id'], name=params['user_name'])
 
-    if (text.startswith(black_emoji)):
-        resp = handle_new_card('black', deck, author, remove_first_word(text))
-    elif (text.startswith(white_emoji)):
-        resp = handle_new_card('white', deck, author, remove_first_word(text))
-    elif (text.startswith("status")):
-        resp = handle_status(deck)
-    elif (text is None or text == ""):
-        resp = handle_draw(deck)
-    else:
+        if (text.startswith(black_emoji)):
+            resp = handle_new_card('black', deck, author, remove_first_word(text))
+        elif (text.startswith(white_emoji)):
+            resp = handle_new_card('white', deck, author, remove_first_word(text))
+        elif (text.startswith("status")):
+            resp = handle_status(deck)
+        elif (text is None or text == ""):
+            resp = handle_draw(deck)
+        else:
+            resp = {
+                'response_type': 'ephemerial',
+                'text': "I don't understand that command."
+            }
+    except SlackError as e:
         resp = {
             'response_type': 'ephemerial',
-            'text': "I don't understand that command."
+            'text': str(e.value)
+        }
+    except Exception as e:
+        resp = {
+            'response_type': 'ephemerial',
+            'text': ("Unexpected exception! " + str(e))
         }
 
     req.content_type = "application/json"
