@@ -196,9 +196,9 @@ class Deck:
                            black_card.pick,
                            black_card.author.id,
                            black_card.author.name))
-        new_id = cursor.lastrowid
+        black_card.card_id = cursor.lastrowid
         self.connection.commit()
-        return new_id
+        return black_card.card_id
 
     def save_white(self, white_card):
         cursor = self.connection.cursor()
@@ -208,9 +208,9 @@ class Deck:
                            white_card.text,
                            white_card.author.id,
                            white_card.author.name))
-        new_id = cursor.lastrowid
+        white_card.card_id = cursor.lastrowid
         self.connection.commit()
-        return new_id
+        return white_card.card_id
 
     def get_status(self):
         cursor = self.connection.cursor()
@@ -263,18 +263,18 @@ def handle_status(deck):
 def handle_new_card(color, deck, author, text):
     if color == 'white':
         new_card = WhiteCard(text=text, author=author)
-        new_card_id = deck.save_white(new_card)
+        deck.save_white(new_card)
         return {
             'response_type': 'in_channel',
-            'text': "New card: (W" + str(new_card_id) + ") :white_square: _" + text + "_",
+            'text': "New card: (" + new_card.get_id_str() + ") :white_square: _" + text + "_",
         }
     elif color == 'black':
         text = normalize_blanks(text)
         new_card = BlackCard(text=text, author=author)
-        new_card_id = deck.save_black(new_card)
+        deck.save_black(new_card)
         return {
             'response_type': 'in_channel',
-            'text': "New card: (B" + str(new_card_id) + ") :black_square: _" + text + "_",
+            'text': "New card: (" + new_card.get_id_str() + ") :black_square: _" + text + "_",
         }
     else:
         raise ValueError("Unknown card color!")
