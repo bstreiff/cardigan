@@ -12,7 +12,7 @@ I'm using the 'libapache2-mod-python' package from Ubuntu Trusty.
 
 - Put it on your webserver somewhere.
 - Make sure db_path points to a directory your webserver can read/write.
-- Add it as a Slack [https://my.slack.com/services/new/slash-commands](custom command).
+- Add it as a Slack [custom command](https://my.slack.com/services/new/slash-commands).
 
 ## Usage
 
