@@ -121,7 +121,7 @@ class BlackCard:
         return { 'text': self.text,
                  'draw': self.draw,
                  'pick': self.pick,
-                 'card_id': self.card_id }                 
+                 'card_id': self.card_id }
 
 class WhiteCard:
     def __init__(self, text, author=None, card_id=None):
@@ -231,7 +231,7 @@ class Deck:
         black_card_count = cursor.fetchone()[0]
         return DeckStatus(white_card_count=white_card_count,
                           black_card_count=black_card_count)
-                        
+
     def get_black_card(self, numeric_id):
         cursor = self.connection.cursor()
         cursor.execute(Deck.BLACK_SELECT + " where id=?", (numeric_id,))
