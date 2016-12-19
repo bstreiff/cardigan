@@ -146,6 +146,11 @@ class DeckStatus:
         self.white_card_count = white_card_count
 
 class Deck:
+    BLACK_SELECT = "select text, draw, pick, user_id, user_name, id from black_cards"
+    WHITE_SELECT = "select text, user_id, user_name, id from white_cards"
+    BLACK_INSERT = "insert or replace into black_cards (id, text, draw, pick, user_id, user_name) values (?,?,?,?,?,?)"
+    WHITE_INSERT = "insert or replace into white_cards (id, text, user_id, user_name) values (?,?,?,?)"
+
     def __init__(self, deck_name):
         if not is_valid_id(deck_name):
             raise ValueError("bad deck name")
@@ -172,7 +177,7 @@ class Deck:
         # "ORDER BY RANDOM() LIMIT 1" isn't good for performance,
         # but my thought is that the sample size will be low enough
         # that I'm choosing not to worry about this now.
-        cursor.execute("select text, draw, pick, user_id, user_name, id from black_cards order by RANDOM() limit 1")
+        cursor.execute(Deck.BLACK_SELECT + " order by RANDOM() limit 1")
         result = self.__cursor_to_black_cards(cursor);
         if (len(result) != 1):
             raise SlackError("Not enough black cards!")
@@ -180,7 +185,7 @@ class Deck:
 
     def draw_whites(self, count=1):
         cursor = self.connection.cursor()
-        cursor.execute("select text, user_id, user_name, id from white_cards order by RANDOM() limit ?", str(count))
+        cursor.execute(Deck.WHITE_SELECT + " order by RANDOM() limit ?", str(count))
         result = self.__cursor_to_white_cards(cursor);
         if (len(result) != count):
             raise SlackError("Not enough white cards!")
@@ -188,9 +193,8 @@ class Deck:
 
     def save_black(self, black_card):
         cursor = self.connection.cursor()
-        cursor.execute("insert into black_cards ("
-                           "text, draw, pick, user_id, user_name) " +
-                       "values (?,?,?,?,?)", (
+        cursor.execute(Deck.BLACK_INSERT, (
+                           black_card.card_id,
                            black_card.text,
                            black_card.draw,
                            black_card.pick,
@@ -202,15 +206,22 @@ class Deck:
 
     def save_white(self, white_card):
         cursor = self.connection.cursor()
-        cursor.execute("insert into white_cards ("
-                           "text, user_id, user_name) " +
-                       "values (?,?,?)", (
+        cursor.execute(Deck.WHITE_INSERT, (
+                           white_card.card_id,
                            white_card.text,
                            white_card.author.id,
                            white_card.author.name))
         white_card.card_id = cursor.lastrowid
         self.connection.commit()
         return white_card.card_id
+
+    def save(self, card):
+        if (card.__class__.__name__ == "BlackCard"):
+            self.save_black(card)
+        elif (card.__class__.__name__ == "WhiteCard"):
+            self.save_white(card)
+        else:
+            raise ProgrammerError("Unknown class type passed to save")
 
     def get_status(self):
         cursor = self.connection.cursor()
@@ -220,6 +231,40 @@ class Deck:
         black_card_count = cursor.fetchone()[0]
         return DeckStatus(white_card_count=white_card_count,
                           black_card_count=black_card_count)
+                        
+    def get_black_card(self, numeric_id):
+        cursor = self.connection.cursor()
+        cursor.execute(Deck.BLACK_SELECT + " where id=?", (numeric_id,))
+        results = self.__cursor_to_black_cards(cursor)
+        if (len(results) < 1):
+            return None
+        else:
+            return results[0]
+
+    def get_white_card(self, numeric_id):
+        cursor = self.connection.cursor()
+        cursor.execute(Deck.WHITE_SELECT + " where id=?", (numeric_id,))
+        results = self.__cursor_to_white_cards(cursor)
+        if (len(results) < 1):
+            return None
+        else:
+            return results[0]
+
+    def get_card_by_id(self, card_id):
+        pattern = re.compile("^([BW])([0-9]+)$")
+        match = pattern.match(card_id)
+        if not match:
+            raise SlackError("Invalid card id '"+card_id+"'")
+
+        if (match.group(1) == 'B'):
+            card = self.get_black_card(int(match.group(2)))
+        else:
+            card = self.get_white_card(int(match.group(2)))
+
+        if not card:
+            raise SlackError("Card '"+card_id+"' not found.")
+        else:
+            return card
 
     def __cursor_to_white_cards(self, cursor):
         results = []
@@ -243,9 +288,9 @@ class Deck:
         text = "%" + text + "%"
         cursor = self.connection.cursor()
         cards = [];
-        cursor.execute("select text, draw, pick, user_id, user_name, id from black_cards where text like ?", (text,));
+        cursor.execute(Deck.BLACK_SELECT + " where text like ?", (text,));
         cards += self.__cursor_to_black_cards(cursor);
-        cursor.execute("select text, user_id, user_name, id from white_cards where text like ?", (text,));
+        cursor.execute(Deck.WHITE_SELECT + " where text like ?", (text,));
         cards += self.__cursor_to_white_cards(cursor);
         return cards
 
@@ -261,6 +306,7 @@ def handle_status(deck):
     }
 
 def handle_new_card(color, deck, author, text):
+    text = normalize_blanks(text)
     if color == 'white':
         new_card = WhiteCard(text=text, author=author)
         deck.save_white(new_card)
@@ -269,7 +315,6 @@ def handle_new_card(color, deck, author, text):
             'text': "New card: (" + new_card.get_id_str() + ") :white_square: _" + text + "_",
         }
     elif color == 'black':
-        text = normalize_blanks(text)
         new_card = BlackCard(text=text, author=author)
         deck.save_black(new_card)
         return {
@@ -320,6 +365,23 @@ def handle_search(deck, text):
         ]
     };
 
+def handle_edit(deck, text):
+    (card_id, _, rest) = text.partition(" ")
+    rest = rest.strip();
+    if (len(rest) == 0):
+        raise SlackError("Need to have a phrase to edit to.")
+    newtext = normalize_blanks(rest)
+
+    card = deck.get_card_by_id(card_id)
+    oldtext = card.text
+    card.text = newtext
+    deck.save(card)
+
+    return {
+        'response_type': 'in_channel',
+        'text': "Card: (" + card.get_id_str() + ") Was: _" + oldtext + "_, Now: _" + newtext + "_",
+    }
+
 def handler(req):
 
     params = util.FieldStorage(req, keep_blank_values=1)
@@ -339,6 +401,8 @@ def handler(req):
             resp = handle_status(deck)
         elif (text.startswith("search")):
             resp = handle_search(deck, remove_first_word(text))
+        elif (text.startswith("edit")):
+            resp = handle_edit(deck, remove_first_word(text))
         elif (text is None or text == ""):
             resp = handle_draw(deck)
         else:
