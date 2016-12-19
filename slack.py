@@ -382,6 +382,19 @@ def handle_edit(deck, text):
         'text': "Card: (" + card.get_id_str() + ") Was: _" + oldtext + "_, Now: _" + newtext + "_",
     }
 
+def handle_help(argv0):
+    return {
+        'response_type': 'ephemeral',
+        'text': ("*Help for "+argv0+"*:\n" +
+                 "`"+argv0+"` - Generate a new phrase\n" +
+                 "`"+argv0+" white [text]` - Add a new white card\n" +
+                 "`"+argv0+" black [text]` - Add a new black card; use `:blank:` or at least 3 underscores for blanks.\n" +
+                 "`"+argv0+" search [str]` - Find cards with 'str'\n" +
+                 "`"+argv0+" edit [id] [text]` - Edit an existing card\n" +
+                 "`"+argv0+" status` - Database info\n" +
+                 "`"+argv0+" help` - This text")
+    }
+
 def handler(req):
 
     params = util.FieldStorage(req, keep_blank_values=1)
@@ -393,7 +406,9 @@ def handler(req):
         deck = Deck(params['team_id'])
         author = User(id=params['user_id'], name=params['user_name'])
 
-        if (text.startswith(black_emoji)):
+        if (text.startswith("help")):
+            resp = handle_help(params['command'])
+        elif (text.startswith(black_emoji)):
             resp = handle_new_card('black', deck, author, remove_first_word(text))
         elif (text.startswith(white_emoji)):
             resp = handle_new_card('white', deck, author, remove_first_word(text))

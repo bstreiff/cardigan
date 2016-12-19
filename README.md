@@ -31,6 +31,8 @@ The following commands are supported. (The following assumes you configured a co
  - Display status about the card pool.
 - `/cah search [text]`
  - Search for cards containing the string "text".
+- `/cah help`
+ - Some help text.
 
 Card pools are scoped to teams.
 
