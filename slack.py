@@ -58,7 +58,7 @@ def conjoin(ary):
     elif (len(ary) == 2):
         return str(ary[0]) + " and " + str(ary[1])
     else:
-        return ary[0:-1].join(", ") + ", and " + str(ary[-1])
+        return ", ".join(ary[0:-1]) + ", and " + str(ary[-1])
 
 def remove_first_word(text):
     first, _, rest = text.partition(" ")
@@ -75,7 +75,7 @@ def round_as_text(black_card, white_cards):
 
     # If cards left over, then the end is implied to be a blank.
     if (top_card < len(white_cards)):
-        text = text + " " + conjoin([ c.text for c in white_cards[top_card:] ]) + "."
+        text = text + " " + conjoin([ "*"+c.text+"*" for c in white_cards[top_card:] ]) + "."
 
     return text
 
