@@ -157,6 +157,11 @@ class Deck:
 
         self.connection = sqlite3.connect(db_path + "/" + deck_name + "-cards.db")
 
+        self.connection.execute("create table if not exists config (" +
+                         "name        varchar unique primary key, " +
+                         "value       varchar  " +
+                     ")")
+
         self.connection.execute("create table if not exists black_cards (" +
                          "id          integer primary key, " +
                          "text        varchar, " +
@@ -171,6 +176,19 @@ class Deck:
                          "user_id     varchar, " +
                          "user_name   varchar  " +
                      ")")
+
+    def get_config_item(self, name):
+        cursor = self.connection.cursor()
+        cursor.execute("select value from config where name=?", (name,))
+        value = None
+        for row in cursor:
+            value = row[0]
+        return value
+
+    def set_config_item(self, name, value):
+        cursor = self.connection.cursor()
+        cursor.execute("insert or replace into config (name, value) values (?,?)", (name, value))
+        self.connection.commit()
 
     def draw_black(self):
         cursor = self.connection.cursor()
@@ -406,17 +424,28 @@ def handler(req):
         deck = Deck(params['team_id'])
         author = User(id=params['user_id'], name=params['user_name'])
 
+        read_only = False;
+
+        # Check that token matches.
+        # If this is the first time, set it.
+        # If the token doesn't match, we're read-only.
+        db_token = deck.get_config_item("token")
+        if not db_token:
+            deck.set_config_item("token", params['token'])
+        elif (db_token != params['token']):
+            read_only = True;
+
         if (text.startswith("help")):
             resp = handle_help(params['command'])
-        elif (text.startswith(black_emoji)):
+        elif (text.startswith(black_emoji) and not read_only):
             resp = handle_new_card('black', deck, author, remove_first_word(text))
-        elif (text.startswith(white_emoji)):
+        elif (text.startswith(white_emoji) and not read_only):
             resp = handle_new_card('white', deck, author, remove_first_word(text))
         elif (text.startswith("status")):
             resp = handle_status(deck)
         elif (text.startswith("search")):
             resp = handle_search(deck, remove_first_word(text))
-        elif (text.startswith("edit")):
+        elif (text.startswith("edit") and not read_only):
             resp = handle_edit(deck, remove_first_word(text))
         elif (text is None or text == ""):
             resp = handle_draw(deck)
