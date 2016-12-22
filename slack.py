@@ -42,14 +42,6 @@ class SlackError(Exception):
     def __str__(self):
         return repr(self.value)
 
-# Return the number of blanks in a string.
-def get_blank_count(text):
-    appears = text.count(blank_pattern);
-    if (appears == 0):
-        return 1
-    else:
-        return appears
-
 def conjoin(ary):
     if (len(ary) == 0):
         return ""
@@ -96,23 +88,27 @@ class User:
         self.name = name
 
 class BlackCard:
-    def __init__(self, text, draw=None, pick=None, author=None, card_id=None):
+    def __init__(self, text, author=None, card_id=None):
         self.text = text
         self.author = author
         self.card_id = card_id
 
-        if pick is None:
-            self.pick = get_blank_count(text)
+        self.pick = self.__get_pick_count()
+        if self.pick >= 3:
+            self.draw = self.pick - 1
         else:
-            self.pick = pick
+            self.draw = 0
 
-        if draw is None:
-            if self.pick >= 3:
-                self.draw = self.pick - 1
-            else:
-                self.draw = 0
+    def settext(self, text):
+        self.text = text
+        self.__get_pick_count()
+
+    def __get_pick_count(self):
+        appears = self.text.count(blank_pattern);
+        if (appears == 0):
+            return 1
         else:
-            self.draw = draw;
+            return appears
 
     def get_id_str(self):
         return "B"+str(self.card_id)
@@ -146,9 +142,9 @@ class DeckStatus:
         self.white_card_count = white_card_count
 
 class Deck:
-    BLACK_SELECT = "select text, draw, pick, user_id, user_name, id from black_cards"
+    BLACK_SELECT = "select text, user_id, user_name, id from black_cards"
     WHITE_SELECT = "select text, user_id, user_name, id from white_cards"
-    BLACK_INSERT = "insert or replace into black_cards (id, text, draw, pick, user_id, user_name) values (?,?,?,?,?,?)"
+    BLACK_INSERT = "insert or replace into black_cards (id, text, user_id, user_name) values (?,?,?,?)"
     WHITE_INSERT = "insert or replace into white_cards (id, text, user_id, user_name) values (?,?,?,?)"
 
     def __init__(self, deck_name):
@@ -165,8 +161,6 @@ class Deck:
         self.connection.execute("create table if not exists black_cards (" +
                          "id          integer primary key, " +
                          "text        varchar, " +
-                         "draw        integer, " +
-                         "pick        integer, " +
                          "user_id     varchar, " +
                          "user_name   varchar  " +
                      ")")
@@ -214,8 +208,6 @@ class Deck:
         cursor.execute(Deck.BLACK_INSERT, (
                            black_card.card_id,
                            black_card.text,
-                           black_card.draw,
-                           black_card.pick,
                            black_card.author.id,
                            black_card.author.name))
         black_card.card_id = cursor.lastrowid
@@ -296,8 +288,8 @@ class Deck:
     def __cursor_to_black_cards(self, cursor):
         results = []
         for row in cursor:
-            (text, draw, pick, user_id, user_name, card_id) = row
-            results.append(BlackCard(text=text, draw=draw, pick=pick,
+            (text, user_id, user_name, card_id) = row
+            results.append(BlackCard(text=text,
                                      author=User(id=user_id, name=user_name),
                                      card_id=card_id))
         return results
@@ -392,7 +384,7 @@ def handle_edit(deck, text):
 
     card = deck.get_card_by_id(card_id)
     oldtext = card.text
-    card.text = newtext
+    card.settext(newtext)
     deck.save(card)
 
     return {
