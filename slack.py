@@ -226,7 +226,20 @@ class Deck:
     def draw_whites(self, count=1):
         return self.__draw("white_cards", count, self.__cursor_to_white_cards)
 
+    def __find_existing(self, table, text):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from "+table+" where upper(text)=upper(?)", (text,))
+        row = cursor.fetchone()
+        if (row is None):
+            return None
+        else:
+            return row[0]
+
     def save(self, card):
+        existing_id = self.__find_existing(card.TABLE, card.text)
+        if (not existing_id is None and existing_id != card.card_id):
+            raise SlackError("Card already exists (as {0}{1}).".format(card.ID_PREFIX, existing_id))
+
         cursor = self.connection.cursor()
         cursor.execute("insert or replace into "+card.TABLE+" (id, text, user_id, user_name) values (?,?,?,?)", (
                            card.card_id,
@@ -384,6 +397,9 @@ def handle_edit(deck, text):
 
     card = deck.get_card_by_id(card_id)
     oldtext = card.text
+    if (newtext == oldtext):
+        raise SlackError("New text same as old text, no change necessary.")
+
     card.text = newtext
     deck.save(card)
 
