@@ -426,11 +426,21 @@ def handle_help(argv0):
 def handler(req):
 
     params = util.FieldStorage(req, keep_blank_values=1)
-    text = params['text']
 
     resp = {}
-
     try:
+        if (not "text" in params):
+            raise SlackError("Bad request: No text given.")
+        if (not "team_id" in params):
+            raise SlackError("Bad request: No team_id given.")
+        if (not "user_id" in params):
+            raise SlackError("Bad request: No user_id given.")
+        if (not "user_name" in params):
+            raise SlackError("Bad request: No user_name given.")
+        if (not "command" in params):
+            raise SlackError("Bad request: No command given.")
+
+        text = params['text']
         deck = Deck(params['team_id'])
         author = User(id=params['user_id'], name=params['user_name'])
 
