@@ -87,46 +87,47 @@ class User:
         self.id = id
         self.name = name
 
-class BlackCard:
+class Card:
     def __init__(self, text, author=None, card_id=None):
         self.text = text
         self.author = author
         self.card_id = card_id
 
-        self.pick = self.__get_pick_count()
-        if self.pick >= 3:
-            self.draw = self.pick - 1
-        else:
-            self.draw = 0
+    def get_id_str(self):
+        return self.ID_PREFIX+str(self.card_id)
 
-    def settext(self, text):
-        self.text = text
-        self.__get_pick_count()
+class BlackCard(Card):
+    TABLE = "black_cards"
+    ID_PREFIX = "B"
+    EMOJI = ":black_square:"
 
-    def __get_pick_count(self):
-        appears = self.text.count(blank_pattern);
+    def __init__(self, text, author=None, card_id=None):
+        Card.__init__(self, text, author, card_id)
+
+    def get_pick_count(self):
+        appears = self.text.count(blank_pattern)
         if (appears == 0):
             return 1
         else:
             return appears
 
-    def get_id_str(self):
-        return "B"+str(self.card_id)
+    def get_draw_count(self):
+        pick = self.get_pick_count()
+        if pick >= 3:
+            self.draw = pick - 1
+        else:
+            self.draw = 0
 
     def as_dict(self):
         return { 'text': self.text,
-                 'draw': self.draw,
-                 'pick': self.pick,
+                 'draw': self.get_draw_count(),
+                 'pick': self.get_pick_count(),
                  'card_id': self.card_id }
 
-class WhiteCard:
-    def __init__(self, text, author=None, card_id=None):
-        self.text = text
-        self.author = author
-        self.card_id = card_id
-
-    def get_id_str(self):
-        return "W"+str(self.card_id)
+class WhiteCard(Card):
+    TABLE = "white_cards"
+    ID_PREFIX = "W"
+    EMOJI = ":white_square:"
 
     def as_dict(self):
         return { 'text': self.text,
@@ -184,54 +185,33 @@ class Deck:
         cursor.execute("insert or replace into config (name, value) values (?,?)", (name, value))
         self.connection.commit()
 
-    def draw_black(self):
+    def __draw(self, table, count, processor):
         cursor = self.connection.cursor()
         # "ORDER BY RANDOM() LIMIT 1" isn't good for performance,
         # but my thought is that the sample size will be low enough
         # that I'm choosing not to worry about this now.
-        cursor.execute(Deck.BLACK_SELECT + " order by RANDOM() limit 1")
-        result = self.__cursor_to_black_cards(cursor);
-        if (len(result) != 1):
-            raise SlackError("Not enough black cards!")
-        return result[0]
-
-    def draw_whites(self, count=1):
-        cursor = self.connection.cursor()
-        cursor.execute(Deck.WHITE_SELECT + " order by RANDOM() limit ?", str(count))
-        result = self.__cursor_to_white_cards(cursor);
+        cursor.execute("select text, user_id, user_name, id from "+table+" order by RANDOM() limit ?", str(count))
+        result = processor(cursor);
         if (len(result) != count):
-            raise SlackError("Not enough white cards!")
+            raise SlackError("Not enough cards!")
         return result
 
-    def save_black(self, black_card):
-        cursor = self.connection.cursor()
-        cursor.execute(Deck.BLACK_INSERT, (
-                           black_card.card_id,
-                           black_card.text,
-                           black_card.author.id,
-                           black_card.author.name))
-        black_card.card_id = cursor.lastrowid
-        self.connection.commit()
-        return black_card.card_id
+    def draw_black(self):
+        return self.__draw("black_cards", 1, self.__cursor_to_black_cards)[0]
 
-    def save_white(self, white_card):
-        cursor = self.connection.cursor()
-        cursor.execute(Deck.WHITE_INSERT, (
-                           white_card.card_id,
-                           white_card.text,
-                           white_card.author.id,
-                           white_card.author.name))
-        white_card.card_id = cursor.lastrowid
-        self.connection.commit()
-        return white_card.card_id
+    def draw_whites(self, count=1):
+        return self.__draw("white_cards", count, self.__cursor_to_white_cards)
 
     def save(self, card):
-        if (card.__class__.__name__ == "BlackCard"):
-            self.save_black(card)
-        elif (card.__class__.__name__ == "WhiteCard"):
-            self.save_white(card)
-        else:
-            raise ProgrammerError("Unknown class type passed to save")
+        cursor = self.connection.cursor()
+        cursor.execute("insert or replace into "+card.TABLE+" (id, text, user_id, user_name) values (?,?,?,?)", (
+                           card.card_id,
+                           card.text,
+                           card.author.id,
+                           card.author.name))
+        card.card_id = cursor.lastrowid
+        self.connection.commit()
+        return card.card_id
 
     def get_status(self):
         cursor = self.connection.cursor()
@@ -319,24 +299,20 @@ def handle_new_card(color, deck, author, text):
     text = normalize_blanks(text)
     if color == 'white':
         new_card = WhiteCard(text=text, author=author)
-        deck.save_white(new_card)
-        return {
-            'response_type': 'in_channel',
-            'text': "New card: (" + new_card.get_id_str() + ") :white_square: _" + text + "_",
-        }
     elif color == 'black':
         new_card = BlackCard(text=text, author=author)
-        deck.save_black(new_card)
-        return {
-            'response_type': 'in_channel',
-            'text': "New card: (" + new_card.get_id_str() + ") :black_square: _" + text + "_",
-        }
     else:
         raise ValueError("Unknown card color!")
 
+    deck.save(new_card)
+    return {
+        'response_type': 'in_channel',
+        'text': "New card: (" + new_card.get_id_str() + ") " + new_card.EMOJI + " _" + text + "_",
+    }
+
 def handle_draw(deck):
     black_card = deck.draw_black()
-    white_cards = deck.draw_whites(black_card.pick)
+    white_cards = deck.draw_whites(black_card.get_pick_count())
     return {
         'response_type': 'in_channel',
         'text': round_as_text(black_card, white_cards),
@@ -384,7 +360,7 @@ def handle_edit(deck, text):
 
     card = deck.get_card_by_id(card_id)
     oldtext = card.text
-    card.settext(newtext)
+    card.text = newtext
     deck.save(card)
 
     return {
