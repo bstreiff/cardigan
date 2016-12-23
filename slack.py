@@ -77,6 +77,15 @@ def remove_first_word(text):
     first, _, rest = text.partition(" ")
     return rest or first
 
+def uppercase_first(text):
+    if (len == 0):
+        return text
+    else:
+        if (text[0] == '*'):
+            return text[0] + text[1].upper() + text[2:]
+        else:
+            return text[0].upper() + text[1:]
+
 def round_as_text(black_card, white_cards):
     text = black_card.text
     top_card = 0;
@@ -90,7 +99,7 @@ def round_as_text(black_card, white_cards):
     if (top_card < len(white_cards)):
         text = text + " " + conjoin([ bold(c.text) for c in white_cards[top_card:] ]) + "."
 
-    return text
+    return uppercase_first(text)
 
 def round_as_dict(black_card, white_cards):
     return {
