@@ -168,9 +168,10 @@ def is_valid_id(text):
     return pattern.match(text)
 
 class DeckStatus:
-    def __init__(self, black_card_count, white_card_count):
+    def __init__(self, black_card_count, white_card_count, authors):
         self.black_card_count = black_card_count
         self.white_card_count = white_card_count
+        self.authors = authors;
 
 class Deck:
     BLACK_SELECT = "select text, user_id, user_name, id from black_cards"
@@ -265,8 +266,24 @@ class Deck:
         white_card_count = cursor.fetchone()[0]
         cursor.execute("select count(*) from black_cards");
         black_card_count = cursor.fetchone()[0]
+
+        authors = {}
+        cursor.execute("select user_name, count(*) from black_cards group by user_id");
+        for row in cursor:
+            (user_name, count) = row
+            if (not user_name in authors):
+                authors[user_name] = {'black':0,'white':0}
+            authors[user_name]['black'] = count;
+        cursor.execute("select user_name, count(*) from white_cards group by user_id");
+        for row in cursor:
+            (user_name, count) = row
+            if (not user_name in authors):
+                authors[user_name] = {'black':0,'white':0}
+            authors[user_name]['white'] = count;
+
         return DeckStatus(white_card_count=white_card_count,
-                          black_card_count=black_card_count)
+                          black_card_count=black_card_count,
+                          authors=authors)
 
     def get_black_card(self, numeric_id):
         cursor = self.connection.cursor()
@@ -333,10 +350,37 @@ class Deck:
 def handle_status(deck):
     status = deck.get_status()
 
-    reply = "Cards: :white_square: {0}, :black_square: {1}".format(
+    reply = "Cards: :white_square: {0}, :black_square: {1}.".format(
         status.white_card_count, status.black_card_count);
 
-    return channel_response(reply)
+    # Get a list of (count,name) tuples sorted by total card count
+    authors_sorted = sorted(
+                        [ (x[1]['black']+x[1]['white'], x[0]) for x in status.authors.items() ],
+                        reverse=True);
+
+    # Render as a string.
+    leaderboard = []
+    for author in authors_sorted:
+        leaderboard.append("{0}: :white_square: {1}, :black_square: {2}".format(
+            author[1],
+            status.authors[author[1]]['white'],
+            status.authors[author[1]]['black']))
+
+    # Another way to render this might be as "fields"
+    # "attachments": [
+    #     "fields": [
+    #         {"value":"ha,ha", "short":true} ]]
+    # This seems to get rid of the "Show more" link?
+
+    return {
+        'response_type': 'in_channel',
+        'text': reply,
+        'attachments': [
+            {
+                'text': "\n".join(leaderboard),
+            }
+        ]
+    };
 
 def handle_new_card(color, deck, author, text):
     text = normalize_blanks(text)
@@ -482,9 +526,9 @@ def handler(req):
             resp = ephemeral_response("I don't understand that command.")
     except SlackError as e:
         resp = ephemeral_response(str(e.value))
-    except Exception as e:
-        resp = ephemeral_response(
-                    ("Unexpected exception! " + str(e)))
+    #except Exception as e:
+    #    resp = ephemeral_response(
+    #                ("Unexpected exception! " + str(e)))
 
     req.content_type = "application/json"
     req.write(json.dumps(resp))
