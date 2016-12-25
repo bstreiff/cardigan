@@ -540,19 +540,21 @@ def handler(req):
         elif (db_token != params['token']):
             read_only = True;
 
-        if (text.startswith("help")):
+        cmd = text.lower()
+
+        if (cmd.startswith("help")):
             resp = handle_help(params['command'])
-        elif (text.startswith(black_emoji) and not read_only):
+        elif (cmd.startswith(black_emoji) and not read_only):
             resp = handle_new_card('black', deck, author, remove_first_word(text))
-        elif (text.startswith(white_emoji) and not read_only):
+        elif (cmd.startswith(white_emoji) and not read_only):
             resp = handle_new_card('white', deck, author, remove_first_word(text))
-        elif (text.startswith("status")):
+        elif (cmd.startswith("status")):
             resp = handle_status(deck)
-        elif (text.startswith("search")):
+        elif (cmd.startswith("search")):
             resp = handle_search(deck, remove_first_word(text))
-        elif (text.startswith("edit") and not read_only):
+        elif (cmd.startswith("edit") and not read_only):
             resp = handle_edit(deck, remove_first_word(text))
-        elif (text.startswith("deal")):
+        elif (cmd.startswith("deal")):
             resp = handle_deal(deck, remove_first_word(text))
         elif (text is None or text == ""):
             resp = handle_draw(deck)
