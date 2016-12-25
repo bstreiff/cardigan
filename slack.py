@@ -307,6 +307,7 @@ class Deck:
         if (card_id is None or card_id == ""):
             raise SlackError("Card id was empty.")
         pattern = re.compile("^([BW])([0-9]+)$")
+        card_id = card_id.upper()
         match = pattern.match(card_id)
         if not match:
             raise SlackError("Invalid card id '"+card_id+"'")
