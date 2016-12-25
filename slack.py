@@ -24,7 +24,6 @@
 from mod_python import apache
 from mod_python import util
 import json
-import random
 import re
 import sqlite3
 
