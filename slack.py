@@ -304,6 +304,8 @@ class Deck:
             return results[0]
 
     def get_card_by_id(self, card_id):
+        if (card_id is None or card_id == ""):
+            raise SlackError("Card id was empty.")
         pattern = re.compile("^([BW])([0-9]+)$")
         match = pattern.match(card_id)
         if not match:
@@ -408,6 +410,35 @@ def handle_draw(deck):
         'raw': round_as_dict(black_card, white_cards)
     }
 
+def handle_deal(deck, text):
+    ids = text.split()
+    if (len(ids) == 0):
+        raise SlackError("Usage: deal <id> [<id> ...]");
+
+    first = deck.get_card_by_id(ids[0])
+    # If the first card is black, then we use that.
+    # Otherwise, the black card is chosen at random.
+    if (first.ID_PREFIX == "B"):
+        black_card = first;
+        ids.pop(0)
+    else:
+        black_card = deck.draw_black();
+
+    # The rest of the list needs to contain only white cards.
+    cards_needed = black_card.get_pick_count();
+    # Only use as many cards as we need.
+    white_cards = []
+    for id in ids:
+        white_cards.append(deck.get_card_by_id(id))
+    # Not enough? Draw some more.
+    if (len(white_cards) < cards_needed):
+        white_cards += deck.draw_whites(cards_needed-len(white_cards))
+
+    return {
+        'response_type': 'in_channel',
+        'text': round_as_text(black_card, white_cards)
+    }
+
 def handle_search(deck, text):
     cards = deck.search(text)
 
@@ -468,10 +499,11 @@ def handle_help(argv0):
         'response_type': 'ephemeral',
         'text': ("*Help for "+argv0+"*:\n" +
                  "`"+argv0+"` - Generate a new phrase\n" +
-                 "`"+argv0+" white [text]` - Add a new white card\n" +
-                 "`"+argv0+" black [text]` - Add a new black card; use `:blank:` or at least 3 underscores for blanks.\n" +
-                 "`"+argv0+" search [str]` - Find cards with 'str'\n" +
-                 "`"+argv0+" edit [id] [text]` - Edit an existing card\n" +
+                 "`"+argv0+" white <text>` - Add a new white card\n" +
+                 "`"+argv0+" black <text>` - Add a new black card; use `:blank:` or at least 3 underscores for blanks.\n" +
+                 "`"+argv0+" search <str>` - Find cards with 'str'\n" +
+                 "`"+argv0+" edit <id> <text>` - Edit an existing card\n" +
+                 "`"+argv0+" deal <id> [<id> ...]` - Deal specific cards\n" +
                  "`"+argv0+" status` - Database info\n" +
                  "`"+argv0+" help` - This text")
     }
@@ -520,15 +552,17 @@ def handler(req):
             resp = handle_search(deck, remove_first_word(text))
         elif (text.startswith("edit") and not read_only):
             resp = handle_edit(deck, remove_first_word(text))
+        elif (text.startswith("deal")):
+            resp = handle_deal(deck, remove_first_word(text))
         elif (text is None or text == ""):
             resp = handle_draw(deck)
         else:
             resp = ephemeral_response("I don't understand that command.")
     except SlackError as e:
         resp = ephemeral_response(str(e.value))
-    #except Exception as e:
-    #    resp = ephemeral_response(
-    #                ("Unexpected exception! " + str(e)))
+    except Exception as e:
+        resp = ephemeral_response(
+                    ("Unexpected exception! " + str(e)))
 
     req.content_type = "application/json"
     req.write(json.dumps(resp))
