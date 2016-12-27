@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf_8 -*-
 #
 # Cardigan - A Cards-Against-Humanity-style generator for Slack
 #
@@ -29,11 +30,11 @@ import sqlite3
 
 db_path = "/var/lib/www/cah"
 
-blank_pattern = ":blank:"
-black_emoji = (":black_square:", ":black_small_square:", ":black_medium_small_square:",
-               ":black_medium_square:", ":black_large_square:", ":black_circle:", "black")
-white_emoji = (":white_square:", ":white_small_square:", ":white_medium_small_square:",
-               ":white_medium_square:", ":white_large_square:", ":white_circle:", "white")
+blank_pattern = u":blank:"
+black_emoji = (u":black_square:", u":black_small_square:", u":black_medium_small_square:",
+               u":black_medium_square:", u":black_large_square:", u":black_circle:", u"black")
+white_emoji = (u":white_square:", u":white_small_square:", u":white_medium_small_square:",
+               u":white_medium_square:", u":white_large_square:", u":white_circle:", u"white")
 
 class SlackError(Exception):
     def __init__(self, value):
@@ -42,10 +43,10 @@ class SlackError(Exception):
         return repr(self.value)
 
 def bold(string):
-    return "*{0}*".format(string)
+    return u"*{0}*".format(string)
 
 def italic(string):
-    return "_{0}_".format(string)
+    return u"_{0}_".format(string)
 
 def base_response(type, text):
     response = {
@@ -62,13 +63,13 @@ def channel_response(text):
 
 def conjoin(ary):
     if (len(ary) == 0):
-        return ""
+        return u""
     elif (len(ary) == 1):
-        return "{0}".format(ary[0])
+        return u"{0}".format(ary[0])
     elif (len(ary) == 2):
-        return "{0} and {1}".format(ary[0], ary[1])
+        return u"{0} and {1}".format(ary[0], ary[1])
     else:
-        return "{0}, and {1}".format(
+        return u"{0}, and {1}".format(
                                 ", ".join(ary[0:-1]),
                                 ary[-1])
 
@@ -80,7 +81,7 @@ def uppercase_first(text):
     if (len == 0):
         return text
     else:
-        if (text[0] == '*'):
+        if (text[0] == u"*"):
             return text[0] + text[1].upper() + text[2:]
         else:
             return text[0].upper() + text[1:]
@@ -126,9 +127,9 @@ class Card:
         return self.ID_PREFIX+str(self.card_id)
 
 class BlackCard(Card):
-    TABLE = "black_cards"
-    ID_PREFIX = "B"
-    EMOJI = ":black_square:"
+    TABLE = u"black_cards"
+    ID_PREFIX = u"B"
+    EMOJI = u":black_square:"
 
     def __init__(self, text, author=None, card_id=None):
         Card.__init__(self, text, author, card_id)
@@ -154,9 +155,9 @@ class BlackCard(Card):
                  'card_id': self.card_id }
 
 class WhiteCard(Card):
-    TABLE = "white_cards"
-    ID_PREFIX = "W"
-    EMOJI = ":white_square:"
+    TABLE = u"white_cards"
+    ID_PREFIX = u"W"
+    EMOJI = u":white_square:"
 
     def as_dict(self):
         return { 'text': self.text,
@@ -173,10 +174,10 @@ class DeckStatus:
         self.authors = authors;
 
 class Deck:
-    BLACK_SELECT = "select text, user_id, user_name, id from black_cards"
-    WHITE_SELECT = "select text, user_id, user_name, id from white_cards"
-    BLACK_INSERT = "insert or replace into black_cards (id, text, user_id, user_name) values (?,?,?,?)"
-    WHITE_INSERT = "insert or replace into white_cards (id, text, user_id, user_name) values (?,?,?,?)"
+    BLACK_SELECT = u"select text, user_id, user_name, id from black_cards"
+    WHITE_SELECT = u"select text, user_id, user_name, id from white_cards"
+    BLACK_INSERT = u"insert or replace into black_cards (id, text, user_id, user_name) values (?,?,?,?)"
+    WHITE_INSERT = u"insert or replace into white_cards (id, text, user_id, user_name) values (?,?,?,?)"
 
     def __init__(self, deck_name):
         if not is_valid_id(deck_name):
@@ -185,29 +186,29 @@ class Deck:
         self.connection = sqlite3.connect(db_path + "/" + deck_name + "-cards.db")
 
         self.connection.execute(
-            "create table if not exists config ("
-            "	name        varchar unique primary key,"
-            "	value       varchar  "
-            ")")
+            u"create table if not exists config ("
+            u"	name        varchar unique primary key,"
+            u"	value       varchar  "
+            u")")
 
         self.connection.execute(
-            "create table if not exists black_cards ("
-            "	id          integer primary key,"
-            "	text        varchar, "
-            "	user_id     varchar, "
-            "	user_name   varchar  "
-            ")")
+            u"create table if not exists black_cards ("
+            u"	id          integer primary key,"
+            u"	text        varchar, "
+            u"	user_id     varchar, "
+            u"	user_name   varchar  "
+            u")")
         self.connection.execute(
-            "create table if not exists white_cards ("
-            "	id          integer primary key, "
-            "	text        varchar, "
-            "	user_id     varchar, "
-            "	user_name   varchar  "
-            ")")
+            u"create table if not exists white_cards ("
+            u"	id          integer primary key, "
+            u"	text        varchar, "
+            u"	user_id     varchar, "
+            u"	user_name   varchar  "
+            u")")
 
     def get_config_item(self, name):
         cursor = self.connection.cursor()
-        cursor.execute("select value from config where name=?", (name,))
+        cursor.execute(u"select value from config where name=?", (name,))
         value = None
         for row in cursor:
             value = row[0]
@@ -215,7 +216,7 @@ class Deck:
 
     def set_config_item(self, name, value):
         cursor = self.connection.cursor()
-        cursor.execute("insert or replace into config (name, value) values (?,?)", (name, value))
+        cursor.execute(u"insert or replace into config (name, value) values (?,?)", (name, value))
         self.connection.commit()
 
     def __draw(self, table, count, processor):
@@ -223,21 +224,21 @@ class Deck:
         # "ORDER BY RANDOM() LIMIT 1" isn't good for performance,
         # but my thought is that the sample size will be low enough
         # that I'm choosing not to worry about this now.
-        cursor.execute("select text, user_id, user_name, id from "+table+" order by RANDOM() limit ?", str(count))
+        cursor.execute(u"select text, user_id, user_name, id from "+table+u" order by RANDOM() limit ?", str(count))
         result = processor(cursor);
         if (len(result) != count):
-            raise SlackError("Not enough cards!")
+            raise SlackError(u"Not enough cards!")
         return result
 
     def draw_black(self):
-        return self.__draw("black_cards", 1, self.__cursor_to_black_cards)[0]
+        return self.__draw(u"black_cards", 1, self.__cursor_to_black_cards)[0]
 
     def draw_whites(self, count=1):
-        return self.__draw("white_cards", count, self.__cursor_to_white_cards)
+        return self.__draw(u"white_cards", count, self.__cursor_to_white_cards)
 
     def __find_existing(self, table, text):
         cursor = self.connection.cursor()
-        cursor.execute("select id from "+table+" where upper(text)=upper(?)", (text,))
+        cursor.execute(u"select id from "+table+u" where upper(text)=upper(?)", (text,))
         row = cursor.fetchone()
         if (row is None):
             return None
@@ -247,10 +248,10 @@ class Deck:
     def save(self, card):
         existing_id = self.__find_existing(card.TABLE, card.text)
         if (not existing_id is None and existing_id != card.card_id):
-            raise SlackError("Card already exists (as {0}{1}).".format(card.ID_PREFIX, existing_id))
+            raise SlackError(u"Card already exists (as {0}{1}).".format(card.ID_PREFIX, existing_id))
 
         cursor = self.connection.cursor()
-        cursor.execute("insert or replace into "+card.TABLE+" (id, text, user_id, user_name) values (?,?,?,?)", (
+        cursor.execute(u"insert or replace into "+card.TABLE+" (id, text, user_id, user_name) values (?,?,?,?)", (
                            card.card_id,
                            card.text,
                            card.author.id,
@@ -261,19 +262,19 @@ class Deck:
 
     def get_status(self):
         cursor = self.connection.cursor()
-        cursor.execute("select count(*) from white_cards");
+        cursor.execute(u"select count(*) from white_cards");
         white_card_count = cursor.fetchone()[0]
-        cursor.execute("select count(*) from black_cards");
+        cursor.execute(u"select count(*) from black_cards");
         black_card_count = cursor.fetchone()[0]
 
         authors = {}
-        cursor.execute("select user_name, count(*) from black_cards group by user_id");
+        cursor.execute(u"select user_name, count(*) from black_cards group by user_id");
         for row in cursor:
             (user_name, count) = row
             if (not user_name in authors):
                 authors[user_name] = {'black':0,'white':0}
             authors[user_name]['black'] = count;
-        cursor.execute("select user_name, count(*) from white_cards group by user_id");
+        cursor.execute(u"select user_name, count(*) from white_cards group by user_id");
         for row in cursor:
             (user_name, count) = row
             if (not user_name in authors):
@@ -286,7 +287,7 @@ class Deck:
 
     def get_black_card(self, numeric_id):
         cursor = self.connection.cursor()
-        cursor.execute(Deck.BLACK_SELECT + " where id=?", (numeric_id,))
+        cursor.execute(Deck.BLACK_SELECT + u" where id=?", (numeric_id,))
         results = self.__cursor_to_black_cards(cursor)
         if (len(results) < 1):
             return None
@@ -295,7 +296,7 @@ class Deck:
 
     def get_white_card(self, numeric_id):
         cursor = self.connection.cursor()
-        cursor.execute(Deck.WHITE_SELECT + " where id=?", (numeric_id,))
+        cursor.execute(Deck.WHITE_SELECT + u" where id=?", (numeric_id,))
         results = self.__cursor_to_white_cards(cursor)
         if (len(results) < 1):
             return None
@@ -303,13 +304,13 @@ class Deck:
             return results[0]
 
     def get_card_by_id(self, card_id):
-        if (card_id is None or card_id == ""):
-            raise SlackError("Card id was empty.")
+        if (card_id is None or card_id == u""):
+            raise SlackError(u"Card id was empty.")
         pattern = re.compile("^([BW])([0-9]+)$")
         card_id = card_id.upper()
         match = pattern.match(card_id)
         if not match:
-            raise SlackError("Invalid card id '"+card_id+"'")
+            raise SlackError(u"Invalid card id '{0}'".format(card_id))
 
         if (match.group(1) == 'B'):
             card = self.get_black_card(int(match.group(2)))
@@ -317,7 +318,7 @@ class Deck:
             card = self.get_white_card(int(match.group(2)))
 
         if not card:
-            raise SlackError("Card '{0}' not found.".format(card_id))
+            raise SlackError(u"Card '{0}' not found.".format(card_id))
         else:
             return card
 
@@ -343,16 +344,16 @@ class Deck:
         text = "%" + text + "%"
         cursor = self.connection.cursor()
         cards = [];
-        cursor.execute(Deck.BLACK_SELECT + " where text like ?", (text,));
+        cursor.execute(Deck.BLACK_SELECT + u" where text like ?", (text,));
         cards += self.__cursor_to_black_cards(cursor);
-        cursor.execute(Deck.WHITE_SELECT + " where text like ?", (text,));
+        cursor.execute(Deck.WHITE_SELECT + u" where text like ?", (text,));
         cards += self.__cursor_to_white_cards(cursor);
         return cards
 
 def handle_status(deck):
     status = deck.get_status()
 
-    reply = "Cards: :white_square: {0}, :black_square: {1}.".format(
+    reply = u"Cards: :white_square: {0}, :black_square: {1}.".format(
         status.white_card_count, status.black_card_count);
 
     # Get a list of (count,name) tuples sorted by total card count
@@ -363,7 +364,7 @@ def handle_status(deck):
     # Render as a string.
     leaderboard = []
     for author in authors_sorted:
-        leaderboard.append("{0}: :white_square: {1}, :black_square: {2}".format(
+        leaderboard.append(u"{0}: :white_square: {1}, :black_square: {2}".format(
             author[1],
             status.authors[author[1]]['white'],
             status.authors[author[1]]['black']))
@@ -379,7 +380,7 @@ def handle_status(deck):
         'text': reply,
         'attachments': [
             {
-                'text': "\n".join(leaderboard),
+                'text': u"\n".join(leaderboard),
             }
         ]
     };
@@ -394,7 +395,7 @@ def handle_new_card(color, deck, author, text):
         raise ValueError("Unknown card color!")
 
     deck.save(new_card)
-    reply = "New card: ({0}) {1} {2}".format(
+    reply = u"New card: ({0}) {1} {2}".format(
                 new_card.get_id_str(),
                 new_card.EMOJI,
                 italic(text))
@@ -413,7 +414,7 @@ def handle_draw(deck):
 def handle_deal(deck, text):
     ids = text.split()
     if (len(ids) == 0):
-        raise SlackError("Usage: deal <id> [<id> ...]");
+        raise SlackError(u"Usage: deal <id> [<id> ...]");
 
     first = deck.get_card_by_id(ids[0])
     # If the first card is black, then we use that.
@@ -444,16 +445,16 @@ def handle_search(deck, text):
 
     if (len(cards) == 0):
         return ephemeral_response(
-            "No results found for {0}".format(italic(text)))
+            u"No results found for {0}".format(italic(text)))
 
     total_count = len(cards)
     result_cap = 4
-    card_strings = [ ("(" + c.get_id_str() + ") " + c.text) for c in cards ]
+    card_strings = [ u"({}) {}".format(c.get_id_str(), c.text) for c in cards ]
 
     if (total_count > result_cap):
         card_strings = card_strings[0:result_cap]
         returned_count = len(card_strings)
-        card_strings.append("... and more. Please be more specific.");
+        card_strings.append(u"... and more. Please be more specific.");
     else:
         returned_count = len(card_strings)
 
@@ -461,7 +462,7 @@ def handle_search(deck, text):
 
     return {
         'response_type': 'ephemeral',
-        'text': "Search for {0} ({1} of {2} results)".format(
+        'text': u"Search for {0} ({1} of {2} results)".format(
                     italic(text),
                     returned_count,
                     total_count),
@@ -476,18 +477,18 @@ def handle_edit(deck, text):
     (card_id, _, rest) = text.partition(" ")
     rest = rest.strip();
     if (len(rest) == 0):
-        raise SlackError("Need to have a phrase to edit to.")
+        raise SlackError(u"Need to have a phrase to edit to.")
     newtext = normalize_blanks(rest)
 
     card = deck.get_card_by_id(card_id)
     oldtext = card.text
     if (newtext == oldtext):
-        raise SlackError("New text same as old text, no change necessary.")
+        raise SlackError(u"New text same as old text, no change necessary.")
 
     card.text = newtext
     deck.save(card)
 
-    reply = "Card: ({0}) Was: {1}, Now: {2}".format(
+    reply = u"Card: ({0}) Was: {1}, Now: {2}".format(
                 card.get_id_str(),
                 italic(oldtext),
                 italic(newtext))
@@ -515,58 +516,65 @@ def handler(req):
     resp = {}
     try:
         if (not "text" in params):
-            raise SlackError("Bad request: No text given.")
+            raise SlackError(u"Bad request: No text given.")
         if (not "team_id" in params):
-            raise SlackError("Bad request: No team_id given.")
+            raise SlackError(u"Bad request: No team_id given.")
         if (not "user_id" in params):
-            raise SlackError("Bad request: No user_id given.")
+            raise SlackError(u"Bad request: No user_id given.")
         if (not "user_name" in params):
-            raise SlackError("Bad request: No user_name given.")
+            raise SlackError(u"Bad request: No user_name given.")
         if (not "command" in params):
-            raise SlackError("Bad request: No command given.")
+            raise SlackError(u"Bad request: No command given.")
 
-        text = params['text']
-        deck = Deck(params['team_id'])
-        author = User(id=params['user_id'], name=params['user_name'])
+        # Incoming data is application/x-www-form-urlencoded. We
+        # assume that it's UTF-8 encoded. There does not appear to
+        # be a header or anything we can check to confirm, so we
+        # just blindly convert.
+        text = params['text'].decode('utf-8')
+        deck = Deck(params['team_id'].decode('utf-8'))
+        author = User(id=params['user_id'].decode('utf-8'),
+                      name=params['user_name'].decode('utf-8'))
+        command = params['command'].decode('utf-8')
 
         read_only = False;
 
         # Check that token matches.
         # If this is the first time, set it.
         # If the token doesn't match, we're read-only.
+        token = params['token'].decode('utf-8')
         db_token = deck.get_config_item("token")
         if not db_token:
-            deck.set_config_item("token", params['token'])
-        elif (db_token != params['token']):
+            deck.set_config_item("token", token)
+        elif (db_token != token):
             read_only = True;
 
         cmd = text.lower()
 
-        if (cmd.startswith("help")):
-            resp = handle_help(params['command'])
+        if (cmd.startswith(u"help")):
+            resp = handle_help(command)
         elif (cmd.startswith(black_emoji) and not read_only):
-            resp = handle_new_card('black', deck, author, remove_first_word(text))
+            resp = handle_new_card(u"black", deck, author, remove_first_word(text))
         elif (cmd.startswith(white_emoji) and not read_only):
-            resp = handle_new_card('white', deck, author, remove_first_word(text))
-        elif (cmd.startswith("status")):
+            resp = handle_new_card(u"white", deck, author, remove_first_word(text))
+        elif (cmd.startswith(u"status")):
             resp = handle_status(deck)
-        elif (cmd.startswith("search")):
+        elif (cmd.startswith(u"search")):
             resp = handle_search(deck, remove_first_word(text))
-        elif (cmd.startswith("edit") and not read_only):
+        elif (cmd.startswith(u"edit") and not read_only):
             resp = handle_edit(deck, remove_first_word(text))
-        elif (cmd.startswith("deal")):
+        elif (cmd.startswith(u"deal")):
             resp = handle_deal(deck, remove_first_word(text))
-        elif (text is None or text == ""):
+        elif (text is None or text == u""):
             resp = handle_draw(deck)
         else:
-            resp = ephemeral_response("I don't understand that command.")
+            resp = ephemeral_response(u"I don't understand that command.")
     except SlackError as e:
         resp = ephemeral_response(str(e.value))
     except Exception as e:
         resp = ephemeral_response(
                     ("Unexpected exception! " + str(e)))
 
-    req.content_type = "application/json"
+    req.content_type = "application/json; charset=utf-8"
     req.write(json.dumps(resp))
 
     return apache.OK
