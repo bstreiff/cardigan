@@ -353,7 +353,7 @@ class Deck:
 def handle_status(deck):
     status = deck.get_status()
 
-    reply = u"Cards: :white_square: {0}, :black_square: {1}.".format(
+    reply = u"Total cards: :white_square:{0} :black_square:{1}".format(
         status.white_card_count, status.black_card_count);
 
     # Get a list of (count,name) tuples sorted by total card count
@@ -361,29 +361,28 @@ def handle_status(deck):
                         [ (x[1]['black']+x[1]['white'], x[0]) for x in status.authors.items() ],
                         reverse=True);
 
-    # Render as a string.
-    leaderboard = []
-    for author in authors_sorted:
-        leaderboard.append(u"{0}: :white_square: {1}, :black_square: {2}".format(
-            author[1],
-            status.authors[author[1]]['white'],
-            status.authors[author[1]]['black']))
+    fields = []
 
-    # Another way to render this might be as "fields"
-    # "attachments": [
-    #     "fields": [
-    #         {"value":"ha,ha", "short":true} ]]
-    # This seems to get rid of the "Show more" link?
+    # Render as a string.
+    for author in authors_sorted:
+        fields.append({
+            "value": u"{0}: :white_square:{1} :black_square:{2}".format(
+                author[1],
+                status.authors[author[1]]['white'],
+                status.authors[author[1]]['black']),
+            "short": True
+        })
 
     return {
         'response_type': 'in_channel',
         'text': reply,
         'attachments': [
             {
-                'text': u"\n".join(leaderboard),
+                'fields': fields
             }
         ]
     };
+
 
 def handle_new_card(color, deck, author, text):
     text = normalize_blanks(text)
