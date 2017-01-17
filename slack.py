@@ -42,6 +42,9 @@ class SlackError(Exception):
     def __str__(self):
         return repr(self.value)
 
+def quote(string):
+    return u"\u00ab\u200d{0}\u200d\u00bb".format(string)
+
 def bold(string):
     return u"*{0}*".format(string)
 
@@ -91,13 +94,13 @@ def round_as_text(black_card, white_cards):
     top_card = 0;
 
     while (text.count(blank_pattern) > 0):
-        answer = bold(white_cards[top_card].text)
+        answer = quote(white_cards[top_card].text)
         top_card += 1
         text = text.replace(blank_pattern, answer, 1);
 
     # If cards left over, then the end is implied to be a blank.
     if (top_card < len(white_cards)):
-        text = text + " " + conjoin([ bold(c.text) for c in white_cards[top_card:] ]) + "."
+        text = text + " " + conjoin([ quote(c.text) for c in white_cards[top_card:] ]) + "."
 
     return uppercase_first(text)
 
@@ -397,7 +400,7 @@ def handle_new_card(color, deck, author, text):
     reply = u"New card: ({0}) {1} {2}".format(
                 new_card.get_id_str(),
                 new_card.EMOJI,
-                italic(text))
+                text)
 
     return channel_response(reply)
 
@@ -444,7 +447,7 @@ def handle_search(deck, text):
 
     if (len(cards) == 0):
         return ephemeral_response(
-            u"No results found for {0}".format(italic(text)))
+            u"No results found for {0}".format(quote(text)))
 
     total_count = len(cards)
     result_cap = 4
@@ -462,7 +465,7 @@ def handle_search(deck, text):
     return {
         'response_type': 'ephemeral',
         'text': u"Search for {0} ({1} of {2} results)".format(
-                    italic(text),
+                    quote(text),
                     returned_count,
                     total_count),
         'attachments': [
@@ -489,8 +492,8 @@ def handle_edit(deck, text):
 
     reply = u"Card: ({0}) Was: {1}, Now: {2}".format(
                 card.get_id_str(),
-                italic(oldtext),
-                italic(newtext))
+                quote(oldtext),
+                quote(newtext))
 
     return channel_response(reply)
 
