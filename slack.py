@@ -353,6 +353,16 @@ class Deck:
         cards += self.__cursor_to_white_cards(cursor);
         return cards
 
+    def dump(self):
+        cursor = self.connection.cursor()
+        database = {}
+        cursor.execute(Deck.BLACK_SELECT)
+        database['black_cards'] = map(lambda x: x.as_dict(), self.__cursor_to_black_cards(cursor))
+        cursor.execute(Deck.WHITE_SELECT)
+        database['white_cards'] = map(lambda x: x.as_dict(), self.__cursor_to_white_cards(cursor))
+
+        return database
+
 def handle_status(deck):
     status = deck.get_status()
 
@@ -511,6 +521,12 @@ def handle_help(argv0):
                  "`"+argv0+" help` - This text")
     }
 
+def handle_dump(deck):
+    return {
+        'response_type': 'ephermeral',
+        'cards': deck.dump(),
+    }
+
 def handler(req):
 
     params = util.FieldStorage(req, keep_blank_values=1)
@@ -540,6 +556,10 @@ def handler(req):
 
         read_only = False;
 
+        web_client = "false";
+        if ("web_client" in params):
+            web_client = params['web_client'].decode('utf-8');
+
         # Check that token matches.
         # If this is the first time, set it.
         # If the token doesn't match, we're read-only.
@@ -566,6 +586,8 @@ def handler(req):
             resp = handle_edit(deck, remove_first_word(text))
         elif (cmd.startswith(u"deal")):
             resp = handle_deal(deck, remove_first_word(text))
+        elif (cmd.startswith(u"dump") and web_client == "true"):
+            resp = handle_dump(deck)
         elif (text is None or text == u""):
             resp = handle_draw(deck)
         else:
