@@ -442,7 +442,18 @@ def handle_deal(deck, text):
     # Only use as many cards as we need.
     white_cards = []
     for id in ids:
-        white_cards.append(deck.get_card_by_id(id))
+        # "any" can be used as a placeholder for "any white card" e.g.
+        # for cards with multiple blanks.
+        if id.upper() == "ANY":
+            card = deck.draw_whites(1)[0];
+        else:
+            card = deck.get_card_by_id(id)
+
+        if card.ID_PREFIX == "W":
+            white_cards.append(card)
+        else:
+            raise SlackError(u"Error: Only the first card may be black.");
+
     # Not enough? Draw some more.
     if (len(white_cards) < cards_needed):
         white_cards += deck.draw_whites(cards_needed-len(white_cards))
